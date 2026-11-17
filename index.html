@@ -36,12 +36,13 @@ input,select,textarea{width:100%;background:var(--bg);color:var(--tx);border:1px
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:var(--sf2);border:1px solid var(--ac);padding:10px 16px;border-radius:12px;z-index:20;display:none}
 .warn{border-color:var(--wr)}svg{width:100%;height:auto}a{color:var(--ac)}
 .orb{width:120px;height:120px;border-radius:50%;margin:16px auto;background:radial-gradient(circle,var(--ac),transparent 70%);animation:br 10s ease-in-out infinite}@keyframes br{0%,100%{transform:scale(.55)}40%{transform:scale(1)}}
+.ach{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tile{background:var(--sf2);border:1px solid var(--ln);border-radius:16px;padding:14px;position:relative;opacity:.6}.tile.ok{opacity:1;border-color:var(--ac);background:linear-gradient(160deg,var(--sf2),var(--sf))}.tile.nx{opacity:1}.tile b{font-size:22px;display:block;line-height:1.15}.tile .s{font-size:12px;color:var(--mu)}.tile .c{position:absolute;top:10px;right:12px;color:var(--ac);font-weight:700}.tile .bar{margin-top:10px;height:6px}details>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center}details>summary::-webkit-details-marker{display:none}
 </style></head><body>
 <main id="app"></main><div id="toast"></div>
 <script>
 const K='reclaim.v1';
 const defS=()=>({quit:new Date().toISOString(),base:18,price:'',pack:20,cur:'₹',tone:'warm',wake:'07:00',bed:'23:00',screen:'22:00',theme:'dark',why:'',photo:'',letter:'',mod:{smoke:true,sleep:true,health:true,prog:true},rem:{checkin:'',nrt:'',exercise:'',sleep:'',weekly:''}});
-const def=()=>({v:1,s:defS(),cr:[],lp:[],nrt:[],hl:{},sl:{},ck:{}});
+const def=()=>({v:1,ach:{},s:defS(),cr:[],lp:[],nrt:[],hl:{},sl:{},ck:{}});
 let memOnly=false;let D=load();D.s.photo='';D.s.letter='';let tab='home',sheet=null,fired={};
 function load(){try{const r=localStorage.getItem(K);if(r){const o=JSON.parse(r);if(o&&o.v===1){const d=def();return {...d,...o,s:{...d.s,...o.s,rem:{...d.s.rem,...(o.s&&o.s.rem)}}}}}}catch(e){memOnly=true}return def()}
 function save(){try{localStorage.setItem(K,JSON.stringify(D))}catch(e){memOnly=true;toast('Storage unavailable – changes will not persist. Export a backup.')}}
@@ -116,34 +117,53 @@ function message(){const S=stats(),t=D.s.tone=='warm'?0:1,n=Date.now();
  return out+' '+sec+(extra.length?' '+extra.join(' '):'')}
 
 // achievements
-function achv(){const S=stats(),h=S.best/36e5,A=[];
- [[24,'First 24 hours'],[72,'3 days'],[168,'7 days'],[336,'14 days'],[720,'30 days'],[1440,'60 days'],[2160,'90 days'],[4320,'180 days'],[8760,'365 days']].forEach(([x,n])=>A.push({n,ok:h>=x}));
- const resisted=D.cr.filter(c=>!c.smoked).length;A.push({n:'10 cravings resisted',ok:resisted>=10},{n:'50 cravings resisted',ok:resisted>=50});
- const ex=Object.entries(D.hl).filter(([d,x])=>x.exT&&x.exT!='none'),w=new Set(days(7));
- A.push({n:'First week of exercise (4+ active days in 7)',ok:ex.filter(([d])=>w.has(d)).length>=4||hasWeek(ex.map(e=>e[0]))});
- const gym=ex.filter(([d,x])=>x.exT=='gym').length;A.push({n:'Gym consistency (12 sessions)',ok:gym>=12});
- const hd=Object.keys(D.hl).sort();A.push({n:'First month of health tracking',ok:hd.length>=20&&hd.length>0&&(new Date(hd[hd.length-1])-new Date(hd[0]))/864e5>=29});
- const r=sl().slice(-7),sd=sdev(r.map(x=>mins(x.wake)));A.push({n:'Sleep consistency (7 nights, wake time within ~30 min)',ok:r.length>=7&&sd<=30});
- A.push({n:'7 AM Club (5 of 7 days: up before 7:00 with 7+ hours’ sleep)',ok:clubWeek()>=5,club:1});return A}
+function achv(){const S=stats(),M=D.s.mod,A=[],h=S.best/36e5,cu=D.s.cur,
+ add=(c,n,big,sub,cur,tgt,rem)=>A.push({c,n,big,sub,cur:cur||0,tgt,rem,ok:!!D.ach[n]||(cur||0)>=tgt}),rs=D.cr.filter(c=>!c.smoked).length;
+ if(M.smoke){CP.forEach(x=>{if(x>=1)add('time','Smoke-free '+MN(x),MN(x),'smoke-free',h,x,r=>dur(r*36e5)+' to go')});
+  [1,3,5,10,25,50,100,200].forEach(x=>add('crav',x+(x==1?' craving beaten':' cravings beaten'),''+x,x==1?'craving beaten':'cravings beaten',rs,x));
+  [10,25,50,100,250,500,1000].forEach(x=>add('cig',x+' cigarettes avoided',''+x,'cigarettes avoided',S.avoided,x));
+  if(S.money!=null)[100,500,1000,2500,5000,10000].forEach(x=>add('money',cu+x+' saved',cu+x,'saved',S.money,x,r=>cu+Math.ceil(r)+' to go'))}
+ if(M.health){const ex=Object.values(D.hl).filter(x=>x.exT&&x.exT!='none'),gym=ex.filter(x=>x.exT=='gym').length,tr=Object.keys(D.hl).length;
+  [1,3,5,10,20,40].forEach(x=>add('act',x+(x==1?' active day':' active days'),''+x,x==1?'active day':'active days',ex.length,x));
+  [1,5,12,25].forEach(x=>add('gym',x+(x==1?' gym session':' gym sessions'),''+x,x==1?'gym session':'gym sessions',gym,x));
+  [1,7,14,30].forEach(x=>add('trk',x+(x==1?' day':' days')+' of health tracking',''+x,x==1?'day tracked':'days tracked',tr,x))}
+ if(M.sleep){const r=sl(),sd=sdev(r.slice(-7).map(x=>mins(x.wake))),cd=r.filter(club).length;
+  [1,7,14,30].forEach(x=>add('sl',x+(x==1?' night':' nights')+' of sleep logged',''+x,x==1?'night logged':'nights logged',r.length,x));
+  [1,3,5,10,20].forEach(x=>add('club','7 AM Club: '+x+(x==1?' early day':' early days')+' (up before 7:00, 7+ hours)',''+x,x==1?'early day · up before 7:00 with 7+ hours':'early days · up before 7:00 with 7+ hours',cd,x));
+  add('club2','Sleep consistency: 7 nights within about 30 minutes','7 nights','steady wake time',r.length>=7&&sd<=30?1:0,1,()=>'Log 7 nights, wake within ~30 min')}
+ return A}
+function checkAch(){const A=achv().filter(x=>x.ok&&!D.ach[x.n]);if(!A.length)return;const silent=!Object.keys(D.ach).length&&A.length>3;A.forEach(x=>D.ach[x.n]=Date.now());save();if(!silent)toast(A.length==1?'Achievement: '+A[0].n:A.length+' new achievements. See Progress.')}
+function achTile(x,n){return'<div class="tile '+(x.ok?'ok':n?'nx':'')+'">'+(x.ok?'<span class="c">✓</span>':'')+'<b>'+esc(x.big)+'</b><span class="s">'+esc(x.sub)+'</span>'+(!x.ok&&n?'<div class="bar"><i style="width:'+Math.min(100,x.cur/x.tgt*100)+'%"></i></div><div class="s" style="margin-top:4px">'+(x.rem||(r=>Math.ceil(r)+' to go'))(x.tgt-x.cur)+'</div>':'')+'</div>'}
+function achHome(){const A=achv();if(!A.length)return'';const ok=A.filter(x=>x.ok).sort((a,b)=>(D.ach[b.n]||0)-(D.ach[a.n]||0)),nx=[],seen=new Set();A.filter(x=>!x.ok).forEach(x=>{if(!seen.has(x.c)){seen.add(x.c);nx.push(x)}});
+ return'<h3 style="margin:18px 0 8px">Achievements <span class="mut" style="font-weight:400">· '+ok.length+' earned</span></h3><div class="ach">'+ok.slice(0,2).map(x=>achTile(x,0)).join('')+nx.slice(0,2).map(x=>achTile(x,1)).join('')+'</div>'+(TABS().some(t=>t[0]=='progress')?'<button class="g" data-a="tab:progress" style="width:100%;margin-top:10px">See all achievements</button>':'')}
+const CAT={time:'Smoke-free time',crav:'Cravings beaten',cig:'Cigarettes avoided',money:'Money saved',act:'Active days',gym:'Gym sessions',trk:'Health tracking',sl:'Sleep logging',club:'7 AM Club',club2:'Sleep consistency'};
+function achvHTML(){const A=achv(),ok=A.filter(x=>x.ok).sort((a,b)=>(D.ach[b.n]||0)-(D.ach[a.n]||0)),nx=[],seen=new Set();A.filter(x=>!x.ok).forEach(x=>{if(!seen.has(x.c)){seen.add(x.c);nx.push(x)}});
+ const tile=achTile,
+ cats=Object.keys(CAT).filter(c=>A.some(x=>x.c==c));
+ return'<h2>Achievements</h2><div class="card"><div class="k">Earned</div><div class="big ac">'+ok.length+'<span style="font-size:18px;color:var(--mu)"> / '+A.length+'</span></div><div class="bar" style="margin-top:10px"><i style="width:'+(A.length?ok.length/A.length*100:0)+'%"></i></div></div>'+
+ (ok.length?'<h3 style="margin:16px 0 8px">Recently earned</h3><div class="ach">'+ok.slice(0,4).map(x=>tile(x,0)).join('')+'</div>':'')+
+ (nx.length?'<h3 style="margin:16px 0 8px">Next up</h3><div class="ach">'+nx.slice(0,6).map(x=>tile(x,1)).join('')+'</div>':'')+
+ '<h3 style="margin:16px 0 8px">All achievements</h3>'+cats.map(c=>{const L=A.filter(x=>x.c==c),n1=L.find(x=>!x.ok);return'<div class="card"><details><summary><b>'+CAT[c]+'</b><span class="mut">'+L.filter(x=>x.ok).length+' / '+L.length+'</span></summary><div class="ach" style="margin-top:12px">'+L.map(x=>tile(x,x===n1)).join('')+'</div></details></div>'}).join('')+'<p class="mut">Awarded only from data you have logged. Once earned, an achievement stays earned.</p>'}
 function hasWeek(ds){const s=new Set(ds);for(let i=0;i<=Object.keys(s).length+60;i++){let c=0;for(let j=0;j<7;j++)if(s.has(dk(Date.now()-(i+j)*864e5)))c++;if(c>=4)return true}return false}
 
 // views
 const card=(h)=>'<div class="card">'+h+'</div>';
-function home(){const M=D.s.mod,S=stats(),n=MS.find(x=>x*36e5>S.cur),td=dk(Date.now()),chk=[],lab=[];
- if(M.smoke){chk.push(!D.lp.some(x=>dk(x.t)==td)&&S.started);lab.push('smoke-free')}
- if(M.sleep){chk.push(!!D.sl[td]);lab.push('sleep logged')}
- if(M.health){chk.push(!!D.hl[td],!!(D.hl[td]&&D.hl[td].exT&&D.hl[td].exT!='none'));lab.push('health logged','active')}
- const sc=chk.filter(Boolean).length,tot=chk.length,prev=MS.filter(x=>x*36e5<=S.cur).pop()||0,pc=n?Math.min(100,(S.cur/36e5-prev)/(n-prev)*100):100,nr=sum(D.nrt.filter(x=>dk(x.t)==td).map(x=>x.n));
+function home(){const M=D.s.mod,S=stats(),n=MS.find(x=>x*36e5>S.cur),td=dk(Date.now()),sx=D.sl[td],hx=D.hl[td],items=[];
+ if(M.smoke){items.push(['I’m committed to staying smoke-free today',!!D.ck['c'+td],'commit']);items.push(['No cigarettes so far today',S.started&&!D.lp.some(x=>dk(x.t)==td),null])}
+ if(M.sleep){items.push(['Sleep logged',!!sx,'sheet:slog']);items.push(['Up before 7:00 with 7+ hours’ sleep',!!(sx&&mins(sx.wake)<420&&sleepDur(sx.bed,sx.wake)>=420),'sheet:slog'])}
+ if(M.health){items.push(['Health logged',!!hx,'sheet:hlog']);items.push(['Exercise or walking',!!(hx&&hx.exT&&hx.exT!='none'),'sheet:hlog']);items.push(['Water logged',!!(hx&&hx.water>0),'sheet:hlog'])}
+ const prev=MS.filter(x=>x*36e5<=S.cur).pop()||0,pc=n?Math.min(100,(S.cur/36e5-prev)/(n-prev)*100):100,nr=sum(D.nrt.filter(x=>dk(x.t)==td).map(x=>x.n));
  let h='<h1>RECLAIM</h1><div class="tag">Take back your health. Take back your life.</div>';
  if(M.smoke)h+=card('<div class="k">Smoke-free streak</div><div class="big ac">'+(S.started?Math.floor(S.cur/864e5):0)+'<span style="font-size:18px"> days</span></div><div class="mut">'+(S.started?dur(S.cur)+' since '+(S.lapses?'your last lapse':'quitting'):'Starts '+fmt(S.q))+'</div>')+
  card('<p style="margin:0">'+esc(message())+'</p>'+(homeLine?'<p class="ac" style="margin:10px 0 0">'+esc(homeLine)+'</p>':'')+'<button class="g" data-a="homepush" style="margin-top:10px">Push me again</button>')+
  (D.s.why?card('<div class="k">Why I quit</div><p style="margin:4px 0 0">'+esc(D.s.why)+'</p>'):'')+
  '<div class="grid"><div class="card"><div class="k">Cigarettes avoided</div><div class="v">'+S.avoided+'</div></div><div class="card"><div class="k">Money saved</div><div class="v">'+money(S.money)+'</div></div><div class="card"><div class="k">Cravings logged</div><div class="v">'+D.cr.length+'</div></div><div class="card"><div class="k">Gum today</div><div class="v">'+nr+' pcs</div></div></div>'+
- card('<div class="k">Next checkpoint</div><div style="margin:4px 0 8px">'+(n?MN(n)+' · '+dur(Math.max(0,n*36e5-S.cur))+' to go':'All checkpoints reached')+'</div><div class="bar"><i style="width:'+pc+'%"></i></div>')+
+ card('<div class="k">Progress to next checkpoint</div><div style="margin:6px 0 8px">'+(n?'<b>'+Math.round(pc)+'%</b> of the way to <b>'+MN(n)+'</b> smoke-free · '+dur(Math.max(0,n*36e5-S.cur))+' to go':'All checkpoints reached')+'</div><div class="bar"><i style="width:'+pc+'%"></i></div>'+(prev?'<div class="mut" style="margin-top:8px">Last reached: '+MN(prev)+' ✓</div>':''))+
  '<button data-a="sheet:sos" style="width:100%;padding:16px;font-size:16px;margin-bottom:10px">Craving? Tap for help</button>';
- if(tot)h+=card('<div class="k">Today’s check-in</div><div style="margin:4px 0 8px">'+sc+' of '+tot+' · '+lab.join(', ')+'</div><div class="bar"><i style="width:'+sc/tot*100+'%"></i></div>');
+ if(items.length){const dn=items.filter(x=>x[1]).length;h+=card('<div class="k">Today’s check-in</div><div style="margin:4px 0 8px"><b>'+dn+' of '+items.length+'</b> done</div><div class="bar"><i style="width:'+dn/items.length*100+'%"></i></div><div style="margin-top:8px">'+items.map(([l,ok,act])=>'<div class="li"'+(act&&!ok?' data-a="'+act+'" style="cursor:pointer"':act=='commit'?' data-a="commit" style="cursor:pointer"':'')+'><span>'+(ok?'<span class="ac">✓</span>':'<span class="mut">○</span>')+' '+l+'</span>'+(!ok&&act?'<span class="mut">Tap</span>':'')+'</div>').join('')+'</div>')}
  const bt=[];if(M.smoke)bt.push('<button data-a="sheet:craving" class="g">Log craving</button><button data-a="sheet:nrt" class="g">Log gum</button>');if(M.health)bt.push('<button data-a="sheet:hlog" class="g">Log health</button>');if(M.sleep)bt.push('<button data-a="sheet:slog" class="g">Log sleep</button>');
  if(bt.length)h+='<div class="row">'+bt.join('')+'</div>';else h+=card('Everything is switched off. Turn sections on in Settings.');
+ h+=achHome();
  if(M.sleep)h+='<div class="card" style="margin-top:14px"><div class="k">7 AM Club</div><div style="margin:4px 0">'+clubWeek()+' of 5 days this week</div><div class="mut">Counts only when you got up before 7:00 <b>and</b> slept 7+ hours.</div></div>';
  return h}
 
@@ -177,7 +197,7 @@ function progress(){const a=summary(7),b=summary(30),A=achv();
  return'<h2>Progress</h2>'+card('<div class="li" style="border:0"><b>Last 7 days / 30 days</b></div>'+row('Cravings','cr')+row('Resisted','res')+row('Lapses','lp')+row('Gum pieces','gum')+row('Avg sleep','sl')+row('Up before 7:00','early')+row('Active days','act'))+
  card('<h3>Money saved</h3><div class="v">'+money(stats().money)+'</div><p class="mut">Based on your pack price and cigarettes avoided.</p>')+
  card('<h3>Nicotine gum per day (14 days)</h3>'+chart(days(14).map(d=>sum(D.nrt.filter(x=>dk(x.t)==d).map(x=>x.n))),['14d ago','today'],'bar'))+
- '<h2>Achievements</h2><div class="card">'+A.map(x=>'<span class="badge '+(x.ok?'ok':'')+'">'+(x.ok?'✓ ':'')+x.n+'</span>').join('')+'<p class="mut">Awarded only from data you have logged.</p></div><button data-a="report" class="g" style="width:100%">Download text report</button>'}
+ achvHTML()+'<button data-a="report" class="g" style="width:100%">Download text report</button>'}
 
 function settings(){const s=D.s,i=(k,l,t,x='')=>'<label>'+l+'</label><input data-s="'+k+'" type="'+t+'" value="'+esc(s[k])+'" '+x+'>';
  return'<h2>Settings</h2><div class="card"><h3>Show / hide sections</h3>'+[['smoke','Quit journey (streak, cravings, gum)'],['sleep','Sleep'],['health','Health &amp; fitness'],['prog','Progress &amp; achievements']].map(([k,l])=>'<label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" style="width:auto" data-m="'+k+'" '+(s.mod[k]?'checked':'')+'>'+l+'</label>').join('')+'</div><div class="card"><label>Quit date &amp; time</label><input data-s="quit" type="datetime-local" value="'+ldt(s.quit)+'">'+i('base','Daily cigarette baseline','number','min=1 max=100')+i('price','Pack price (leave empty if unknown)','number','min=0 step=0.01')+i('pack','Cigarettes per pack','number','min=1')+i('cur','Currency symbol','text','maxlength=4')+
@@ -218,12 +238,13 @@ function sheetHTML(t){const now=ldt(Date.now()),F=(n,l,ty,x='')=>'<label>'+l+'</
 function TABS(){const M=D.s.mod;return[['home','⌂','Home'],M.smoke&&['journey','◔','Quit Journey'],(M.health||M.sleep)&&['health','♡','Health'],M.prog&&['progress','▤','Progress'],['settings','⚙','Settings']].filter(Boolean)}
 function render(){if(!TABS().some(x=>x[0]==tab))tab='home';document.documentElement.dataset.theme=D.s.theme;const V={home,journey,health,progress,settings}[tab]();
  $('#app').innerHTML=V+'<nav>'+TABS().map(([k,i,l])=>'<button data-a="tab:'+k+'" class="'+(tab==k?'on':'')+'"><i>'+i+'</i>'+l+'</button>').join('')+'</nav>'+(sheet?'<div class="sheet"><div>'+sheetHTML(sheet)+'</div></div>':'')}
-const _r=render;render=function(){_r();if(sheet=='sos')sosInit()};
+const _r=render;render=function(){_r();if(sheet=='sos')sosInit();checkAch()};
 function dl(name,txt,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
 function report(){const a=summary(7),b=summary(30),S=stats();return'RECLAIM report · '+new Date().toLocaleString()+'\nStreak: '+dur(S.cur)+' | Best: '+dur(S.best)+' | Smoke-free days: '+S.sf+'\nCigarettes avoided: '+S.avoided+' | Money saved: '+(S.money==null?'price not set':D.s.cur+S.money.toFixed(0))+'\n\nLast 7 days: '+JSON.stringify(a)+'\nLast 30 days: '+JSON.stringify(b)+'\nAchievements: '+achv().filter(x=>x.ok).map(x=>x.n).join('; ')+'\n'}
 
 document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||el.type=='checkbox')return;const[a,x,y]=el.dataset.a.split(':');
  if(a=='tab'){tab=x;render();scrollTo(0,0)}else if(a=='sheet'){sheet=x;if(x=='sos'){sosLen=18e4;sosEnd=Date.now()+sosLen;curLine=nextLine()}render()}else if(a=='close'){sheet=null;render()}
+ else if(a=='commit'){const k='c'+dk(Date.now());D.ck[k]=!D.ck[k];save();render();if(D.ck[k])toast('Committed. Make today count.')}
  else if(a=='sosch'){const c=$('#sosCh');if(c)c.textContent=SC[Math.floor(Math.random()*SC.length)]}
  else if(a=='sospush'){curLine=nextLine();$('#sosMsg').textContent=curLine}
  else if(a=='sosmore'){sosLen+=12e4;sosEnd+=12e4}
