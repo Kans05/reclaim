@@ -41,7 +41,7 @@ input,select,textarea{width:100%;background:var(--bg);color:var(--tx);border:1px
 <main id="app"></main><div id="toast"></div>
 <script>
 const K='reclaim.v1';
-const defS=()=>({quit:new Date().toISOString(),base:18,price:'',pack:20,cur:'₹',tone:'warm',wake:'07:00',bed:'23:00',screen:'22:00',theme:'dark',name:'',people:'',mine:'',why:'',photo:'',letter:'',mod:{smoke:true,sleep:true,health:true,prog:true},rem:{checkin:'',nrt:'',exercise:'',sleep:'',weekly:''}});
+const defS=()=>({quit:new Date().toISOString(),base:18,price:'',pack:20,cur:'₹',tone:'warm',wake:'07:00',bed:'23:00',screen:'22:00',theme:'dark',gumHold:0,name:'',people:'',mine:'',why:'',photo:'',letter:'',mod:{smoke:true,sleep:true,health:true,prog:true},rem:{checkin:'',nrt:'',exercise:'',sleep:'',weekly:''}});
 const def=()=>({v:1,ach:{},s:defS(),cr:[],lp:[],nrt:[],hl:{},sl:{},ck:{}});
 let memOnly=false;let D=load();D.s.photo='';D.s.letter='';let tab='home',sheet=null,fired={};
 function load(){try{const r=localStorage.getItem(K);if(r){const o=JSON.parse(r);if(o&&o.v===1){const d=def();return {...d,...o,s:{...d.s,...o.s,rem:{...d.s.rem,...(o.s&&o.s.rem)}}}}}}catch(e){memOnly=true}return def()}
@@ -161,6 +161,7 @@ function home(){const M=D.s.mod,S=stats(),n=MS.find(x=>x*36e5>S.cur),td=dk(Date.
  '<div class="grid"><div class="card"><div class="k">Cigarettes avoided</div><div class="v">'+S.avoided+'</div></div><div class="card"><div class="k">Money saved</div><div class="v">'+money(S.money)+'</div></div><div class="card"><div class="k">Cravings logged</div><div class="v">'+D.cr.length+'</div></div><div class="card"><div class="k">Gum today</div><div class="v">'+nr+' pcs</div></div></div>'+
  card('<div class="k">Progress to next checkpoint</div><div style="margin:6px 0 8px">'+(n?'<b>'+Math.round(pc)+'%</b> of the way to <b>'+MN(n)+'</b> smoke-free · '+dur(Math.max(0,n*36e5-S.cur))+' to go':'All checkpoints reached')+'</div><div class="bar"><i style="width:'+pc+'%"></i></div>'+(prev?'<div class="mut" style="margin-top:8px">Last reached: '+MN(prev)+' ✓</div>':''))+
  '<button data-a="sheet:sos" style="width:100%;padding:16px;font-size:16px;margin-bottom:10px">Craving? Tap for help</button>';
+ if(M.smoke)h+=gumHome();
  if(items.length){const dn=items.filter(x=>x[1]).length;h+=card('<div class="k">Today’s check-in</div><div style="margin:4px 0 8px"><b>'+dn+' of '+items.length+'</b> done</div><div class="bar"><i style="width:'+dn/items.length*100+'%"></i></div><div style="margin-top:8px">'+items.map(([l,ok,act])=>'<div class="li"'+(act&&!ok?' data-a="'+act+'" style="cursor:pointer"':act=='commit'?' data-a="commit" style="cursor:pointer"':'')+'><span>'+(ok?'<span class="ac">✓</span>':'<span class="mut">○</span>')+' '+l+'</span>'+(!ok&&act?'<span class="mut">Tap</span>':'')+'</div>').join('')+'</div>')}
  const bt=[];if(M.smoke)bt.push('<button data-a="sheet:craving" class="g">Log craving</button><button data-a="sheet:nrt" class="g">Log gum</button>');if(M.health)bt.push('<button data-a="sheet:hlog" class="g">Log health</button>');if(M.sleep)bt.push('<button data-a="sheet:slog" class="g">Log sleep</button>');
  if(bt.length)h+='<div class="row">'+bt.join('')+'</div>';else h+=card('Everything is switched off. Turn sections on in Settings.');
@@ -168,6 +169,28 @@ function home(){const M=D.s.mod,S=stats(),n=MS.find(x=>x*36e5>S.cur),td=dk(Date.
  if(M.sleep)h+='<div class="card" style="margin-top:14px"><div class="k">7 AM Club</div><div style="margin:4px 0">'+clubWeek()+' of 5 days this week</div><div class="mut">Counts only when you got up before 7:00 <b>and</b> slept 7+ hours.</div></div>';
  return h}
 
+function gumPlan(){const q=new Date(D.s.quit),q0=new Date(q.getFullYear(),q.getMonth(),q.getDate()),t0=new Date();t0.setHours(0,0,0,0);
+ const day=Math.round((t0-q0)/864e5),cnt=i=>{const d=new Date(q0);d.setDate(d.getDate()+i);const k=dk(d);return sum(D.nrt.filter(x=>dk(x.t)==k).map(x=>x.n))};
+ const ready=day>=3,B=ready?Math.min(24,Math.round(avg([0,1,2].map(cnt)))):null,hold=D.s.gumHold||0,w=Math.max(1,Math.floor(day/7)+1-hold),F=[1,1,1,1,1,1,.6,.5,.4,.3,.2,.1];
+ const tg=ww=>B==null?null:B==0||ww>12?0:ww<=6?B:Math.max(1,Math.round(B*F[ww-1]));
+ return{day,ready,B,w,hold,T:tg(w),tg,started:day>=0}}
+function gumHome(){const G=gumPlan(),td=dk(Date.now()),c=sum(D.nrt.filter(x=>dk(x.t)==td).map(x=>x.n));let b;
+ if(!G.started)b='<p class="mut" style="margin:6px 0 0">The plan starts on your quit date.</p>';
+ else if(!G.ready)b='<p style="margin:6px 0 0">Learning your pattern: day '+(G.day+1)+' of 3. Log each piece you chew ('+c+' so far today). After day 3, your daily target is set from your own use.</p>';
+ else if(G.B==0)b='<p style="margin:6px 0 0">You logged no gum in your first 3 days, so there’s no gum target. Great if you’re not using it.</p>';
+ else if(G.w>12)b='<p style="margin:6px 0 0">Gum-free phase: aim for 0 today. If you still need gum, talk to a pharmacist or doctor.</p>';
+ else b='<div style="margin:6px 0 8px"><b>'+c+' of '+G.T+'</b> pieces today · week '+G.w+' of 12'+(G.w<12&&G.tg(G.w+1)!=G.T?' · next week’s target: '+G.tg(G.w+1):'')+'</div><div class="bar"><i style="width:'+Math.min(100,G.T?c/G.T*100:100)+'%"></i></div>'+(c>G.T?'<p class="mut" style="margin:8px 0 0">Above today’s target. That’s okay: check your leaflet limits, and ask a pharmacist if you often need more.</p>':'');
+ return card('<div class="k">Gum plan</div>'+b+'<button class="g" data-a="gum1" style="margin-top:10px;width:100%">+1 piece just now</button>')}
+function gumJourney(){const G=gumPlan(),q=new Date(D.s.quit).getTime(),L=D.nrt.filter(x=>x.t>=q),bands={};L.forEach(x=>{const b=['00–06','06–12','12–18','18–24'][Math.floor(new Date(x.t).getHours()/6)];bands[b]=(bands[b]||0)+x.n});
+ const pk=Object.entries(bands).sort((a,b)=>b[1]-a[1])[0];
+ let t='<h3>Gum step-down plan</h3>';
+ if(!G.ready)t+='<p class="mut">Log each piece for your first 3 days after quitting. Then I’ll set your target from your own pattern.</p>';
+ else if(G.B==0)t+='<p class="mut">No gum logged in your first 3 days, so there’s no target.</p>';
+ else{t+='<p style="margin:0 0 8px">Your pattern: about <b>'+G.B+'</b> pieces a day'+(pk?', mostly '+pk[0]+' h':'')+'. Target held for weeks 1–6, then lowered each week until week 12.</p><div>'+[...Array(12)].map((_,i)=>'<span class="badge '+(i+1<G.w?'ok':i+1==G.w?'ok" style="background:var(--sf2)':'')+'">Wk '+(i+1)+' · '+G.tg(i+1)+'</span>').join('')+'</div>'+
+ (G.B<9?'<p class="mut">Labels suggest at least 9 pieces a day in the first 6 weeks improves your chances. If you use fewer, ask a pharmacist what suits you.</p>':'')+
+ '<h3 style="margin:12px 0 6px">Last 7 days</h3>'+chart(days(7).map(d=>sum(D.nrt.filter(x=>dk(x.t)==d).map(x=>x.n))),['7d ago','today'],'bar')+
+ '<div class="row" style="margin-top:10px"><button class="g" data-a="gumhold">Stay on this step one more week</button>'+(G.hold?'<button class="g" data-a="gumhold0">Undo extra weeks ('+G.hold+')</button>':'')+'</div>'}
+ return card(t+'<p class="mut" style="margin-top:10px">This follows the standard 12-week gum step-down (label: weeks 7–9 about every 2–4 hours, weeks 10–12 about every 4–8 hours), scaled to your own use. It is not medical advice. If your Nicotex leaflet differs, follow the leaflet, and ask a pharmacist or doctor if you need gum beyond 12 weeks.</p>')}
 function journey(){const S=stats(),c=D.cr;const tr={},hr={};c.forEach(x=>{tr[x.trig]=(tr[x.trig]||0)+1;const b=['00–06','06–12','12–18','18–24'][Math.floor(new Date(x.t).getHours()/6)];hr[b]=(hr[b]||0)+1});
  const top=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<div class="li"><span>'+esc(k)+'</span><b>'+v+'</b></div>').join('')||'<p class="mut">Log cravings to see patterns.</p>';
  const ok=c.length?Math.round(c.filter(x=>!x.smoked).length/c.length*100)+'%':'–';
@@ -176,7 +199,7 @@ function journey(){const S=stats(),c=D.cr;const tr={},hr={};c.forEach(x=>{tr[x.t
  return'<h2>Quit journey</h2><div class="grid"><div class="card"><div class="k">Best streak</div><div class="v">'+dur(S.best)+'</div></div><div class="card"><div class="k">Smoke-free days</div><div class="v">'+S.sf+'</div></div><div class="card"><div class="k">Lapses logged</div><div class="v">'+S.lapses+'</div></div><div class="card"><div class="k">Craving success</div><div class="v">'+ok+'</div></div></div>'+
  '<div class="row" style="margin-top:10px"><button data-a="sheet:craving">Log craving</button><button class="g" data-a="sheet:lapse">Record a lapse</button></div>'+
  card('<h3>Top triggers</h3>'+top(tr))+card('<h3>Strongest craving periods</h3>'+top(hr)+'<h3 style="margin-top:12px">Cravings per day (14 days)</h3>'+chart(days(14).map(d=>c.filter(x=>dk(x.t)==d).length),['14d ago','today'],'bar'))+
- card('<h3>Nicotine gum</h3><p class="mut">This is a logging tool, not dosing advice. Confirm strength (2 mg vs 4 mg) and schedule using the product leaflet and a pharmacist or doctor; don’t exceed the instructions.</p><p><b>Chew and park:</b> chew slowly until the taste turns peppery or you feel a tingle, park it between cheek and gum, and when the tingle fades chew again. Repeat for about 30 minutes. Avoid acidic drinks (coffee, juice) 15 minutes before and during.</p><button data-a="sheet:nrt">Log gum</button>'+hist(D.nrt.map((x,i)=>[x.t,x.prod+' '+x.str+' × '+x.n+(x.note?' · '+esc(x.note):''),'nrt',i])))+
+ gumJourney()+card('<h3>Nicotine gum</h3><p class="mut">This is a logging tool, not dosing advice. Confirm strength (2 mg vs 4 mg) and schedule using the product leaflet and a pharmacist or doctor; don’t exceed the instructions.</p><p><b>Chew and park:</b> chew slowly until the taste turns peppery or you feel a tingle, park it between cheek and gum, and when the tingle fades chew again. Repeat for about 30 minutes. Avoid acidic drinks (coffee, juice) 15 minutes before and during.</p><button data-a="sheet:nrt">Log gum</button>'+hist(D.nrt.map((x,i)=>[x.t,x.prod+' '+x.str+' × '+x.n+(x.note?' · '+esc(x.note):''),'nrt',i])))+
  card('<h3>Craving &amp; lapse history</h3>'+hist([...c.map((x,i)=>[x.t,'Craving '+x.int+'/10 · '+esc(x.trig)+(x.smoked?' · smoked':' · resisted')+(x.did?' · '+esc(x.did):''),'cr',i]),...D.lp.map((x,i)=>[x.t,'Lapse · '+x.n+' cigarette(s)'+(x.note?' · '+esc(x.note):''),'lp',i])]))+
  '<h2>Recovery timeline</h2>'+timeline(S,NHS,CDC,WHO)}
 function hist(a){a.sort((x,y)=>y[0]-x[0]);return a.length?a.slice(0,15).map(x=>'<div class="li"><span>'+fmt(x[0])+' · '+x[1]+'</span><button class="d" data-a="del:'+x[2]+':'+x[3]+'">Delete</button></div>').join(''):'<p class="mut">Nothing logged yet.</p>'}
@@ -257,6 +280,9 @@ function report(){const a=summary(7),b=summary(30),S=stats();return'RECLAIM repo
 document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el||el.type=='checkbox')return;const[a,x,y]=el.dataset.a.split(':');
  if(a=='tab'){tab=x;render();scrollTo(0,0)}else if(a=='sheet'){sheet=x;if(x=='sos'){sosLen=18e4;sosEnd=Date.now()+sosLen;curLine=nextLine()}render()}else if(a=='close'){sheet=null;render()}
  else if(a=='commit'){const k='c'+dk(Date.now());D.ck[k]=!D.ck[k];save();render();if(D.ck[k])toast('Committed. Make today count.')}
+ else if(a=='gum1'){const l=D.nrt.slice().sort((a,b)=>b.t-a.t)[0];D.nrt.push({t:Date.now(),prod:l?l.prod:'Nicotex',str:l?l.str:'2 mg',n:1,note:''});save();render();toast('Piece logged.')}
+ else if(a=='gumhold'){D.s.gumHold=(D.s.gumHold||0)+1;save();render();toast('Staying on this step another week. That’s fine.')}
+ else if(a=='gumhold0'){D.s.gumHold=0;save();render()}
  else if(a=='sosch'){const c=$('#sosCh');if(c)c.textContent=SC[Math.floor(Math.random()*SC.length)]}
  else if(a=='sospush'){curLine=nextLine();$('#sosMsg').textContent=curLine}
  else if(a=='sosgen'){$('#sosMsg').textContent=nextGeneric()}
